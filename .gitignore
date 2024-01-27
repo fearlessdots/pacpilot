@@ -1,0 +1,10 @@
+*.tar.gz
+*.tar.zst
+*.pkg.tar.xz
+pkg
+src
+go.sum
+pacpilot
+.kateproject
+*.kate-swp
+*.unison_backup

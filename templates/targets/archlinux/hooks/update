@@ -1,0 +1,76 @@
+#!/usr/bin/bash
+set -e
+
+remove_duplicate_pkgs() {
+	# Initialize the JSON data structure
+	json_data='{"packages":{}}'
+	
+	# Get all packages in the directory
+	packages=$(find . -name '*-*-*.pkg.tar.zst' | awk -F- '{print $1}' | sort | uniq | sed 's#./##g')
+
+	# Check if any packages were found
+	if [ -z "${packages}" ]; then
+		echo "    > No packages found"
+		exit 1
+	fi
+	
+	# Get the name for all available packages
+	for package in ${packages}
+	do
+		package_versions=$(find . -name "${package}-*-*.pkg.tar.zst" | awk -F- '{print $2"-"$3}' | sort | uniq | sed 's#./##g' | tr '\n' ',' | sed 's/,$//')
+		json_data=$(echo "${json_data}" | jq --arg package "${package}" --arg versions "${package_versions}" '.packages[$package].versions = ($versions | split(",") )')
+
+		# Check if jq command was successful
+		if [ $? -ne 0 ]; then
+			echo "    > Failed to add versions for package $package"
+			exit 1
+		fi
+	done
+	
+	# Get the latest version for each package
+	for package in $(echo "${json_data}" | jq -r '.packages | keys[]')
+	do
+		latest_version=$(echo "${json_data}" | jq -r --arg package "${package}" '.packages[$package].versions.[]' | sort -V | tail -n1)
+		json_data=$(echo "${json_data}" | jq --arg package "${package}" --arg latest_version "${latest_version}" '.packages[$package].latest = $latest_version')
+
+		# Check if jq command was successful
+		if [ $? -ne 0 ]; then
+			echo "    > Failed to add latest version for package $package"
+			exit 1
+		fi
+	done
+	
+	# Remove old versions
+	for package in $(echo "${json_data}" | jq -r '.packages | keys[]')
+	do
+		latest_version=$(echo "${json_data}" | jq -r --arg package "${package}" '.packages[$package].latest')
+		versions=$(echo "${json_data}" | jq -r --arg package "${package}" '.packages[$package].versions[]')
+	
+		for version in ${versions}
+		do
+			if [ "${version}" != "${latest_version}" ]; then
+				file="${package}-${version}-*.pkg.tar.zst"
+				sig_file="${package}-${version}-*.pkg.tar.zst.sig"
+
+				# Check if files exist before trying to remove them
+				if [ -f ${file} ]; then
+					rm ${file}
+				fi
+				if [ -f ${sig_file} ]; then
+					rm ${sig_file}
+				fi
+			fi
+		done
+	done
+}
+
+cd ${TARGET_POOL_DIR}
+
+echo "Removing old repo files"
+rm ${REPO_NAME}.db* ${REPO_NAME}.files* || true
+
+echo "Removing duplicate packages"
+remove_duplicate_pkgs
+
+echo "Adding packages to repository"
+repo-add -s -n -R "${REPO_NAME}.db.tar.gz" *.pkg.tar.zst
