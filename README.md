@@ -151,8 +151,8 @@ pacpilot completion fish > <output_file>
 
 - pacpilot: The main command for the program.
   - version: Show the program's version.
-  - init: Create user data directory
-  - completion: Generate autocompletion files (`bash`, `zsh`, `fish`, and `powershell`)
+  - init: Create user data directory.
+  - completion: Generate autocompletion files (`bash`, `zsh`, `fish`, and `powershell`).
   - docs: Program documentation.
     - generate: Generate program documentation (markdown files).
   - utils: Utilities for hooks execution.
